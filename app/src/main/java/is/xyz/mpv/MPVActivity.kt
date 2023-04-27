@@ -494,7 +494,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
     private var mightWantToToggleControls = false
 
     private var useAudioUI = false
-    private var lockedUI = false
+    private var lockedUI = true
 
     private fun pauseForDialog(): StateRestoreCallback {
         val useKeepOpen = when (noUIPauseMode) {
@@ -603,7 +603,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         fadeHandler.removeCallbacks(fadeRunnable2)
         binding.unlockBtn.animate().setListener(null).cancel()
 
-        binding.unlockBtn.alpha = 1f
+        binding.unlockBtn.alpha = 0f
         binding.unlockBtn.visibility = View.VISIBLE
 
         fadeHandler.postDelayed(fadeRunnable2, CONTROLS_DISPLAY_TIMEOUT)
@@ -612,7 +612,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
     override fun dispatchKeyEvent(ev: KeyEvent): Boolean {
         if (lockedUI) {
             showUnlockControls()
-            return super.dispatchKeyEvent(ev)
+            // return super.dispatchKeyEvent(ev)
         }
 
         // try built-in event handler first, forward all other events to libmpv
