@@ -30,7 +30,7 @@ build_prefix() {
 	# build everything mpv depends on (but not mpv itself)
 	for x in ${dep_mpv[@]}; do
 		msg "Building $x"
-		./buildall.sh $x
+		./buildall.sh --arch $1 $x
 	done
 
 	if [[ "$CACHE_MODE" == github && -n "$GITHUB_TOKEN" ]]; then
@@ -67,7 +67,8 @@ if [ "$1" == "install" ]; then
 
 	msg "Trying to fetch existing prefix"
 	mkdir -p prefix
-	fetch_prefix || build_prefix
+	fetch_prefix
+	build_prefix arm64
 	exit 0
 elif [ "$1" == "build" ]; then
 	:
@@ -75,14 +76,21 @@ else
 	exit 1
 fi
 
-msg "Building mpv"
+msg "Building mpv (armv7l)"
 ./buildall.sh -n mpv || {
 	# show logfile if configure failed
 	[ ! -f deps/mpv/_build/config.h ] && cat deps/mpv/_build/meson-logs/meson-log.txt
 	exit 1
 }
 
+msg "Building mpv (arm64)"
+./buildall.sh --arch arm64 -n mpv || {
+	# show logfile if configure failed
+	[ ! -f deps/mpv/_build/config.h ] && cat deps/mpv/_build/meson-logs/meson-log.txt
+	exit 1
+}
+
 msg "Building mpv-android"
-./buildall.sh -n
+./buildall.sh --arch arm64 -n
 
 exit 0
