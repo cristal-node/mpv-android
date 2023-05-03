@@ -67,8 +67,7 @@ if [ "$1" == "install" ]; then
 
 	msg "Trying to fetch existing prefix"
 	mkdir -p prefix
-	fetch_prefix
-	build_prefix arm64
+	fetch_prefix || build_prefix arm64
 	exit 0
 elif [ "$1" == "build" ]; then
 	:
