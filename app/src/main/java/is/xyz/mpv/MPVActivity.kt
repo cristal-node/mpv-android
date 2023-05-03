@@ -664,6 +664,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
     }
 
     private fun interceptDpad(ev: KeyEvent): Boolean {
+        if(lockedUI) return false
         if (btnSelected == -1) { // UP and DOWN are always grabbed and overriden
             when (ev.keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
