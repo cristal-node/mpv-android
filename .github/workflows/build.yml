@@ -23,9 +23,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install autoconf pkg-config libtool ninja-build \
-            python3-pip python3-setuptools unzip
-          sudo pip3 install meson
+          sudo apt-get install autoconf pkg-config libtool ninja-build meson
 
       - name: Download deps
         run: |
