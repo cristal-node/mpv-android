@@ -1770,7 +1770,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         // how long should controls be displayed on screen (ms)
         private const val CONTROLS_DISPLAY_TIMEOUT = 1500L
         // how long controls fade to disappear (ms)
-        private const val CONTROLS_FADE_DURATION = 500L
+        private const val CONTROLS_FADE_DURATION = 0L
         // size (px) of the thumbnail displayed with background play notification
         private const val THUMB_SIZE = 192
         // smallest aspect ratio that is considered non-square
