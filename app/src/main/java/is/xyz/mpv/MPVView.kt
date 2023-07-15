@@ -19,9 +19,13 @@ internal class MPVView(context: Context, attrs: AttributeSet) : SurfaceView(cont
         MPVLib.setOptionString("config-dir", configDir)
         initOptions() // do this before init() so user-supplied config can override our choices
         MPVLib.init()
-        // certain options are hardcoded:
+        /* Hardcoded options: */
+        // we need to call write-watch-later manually
         MPVLib.setOptionString("save-position-on-quit", "no")
+        // would crash before the surface is attached
         MPVLib.setOptionString("force-window", "no")
+        // "no" wouldn't work and "yes" is not intended by the UI
+        MPVLib.setOptionString("idle", "once")
 
         holder.addCallback(this)
         observeProperties()
@@ -104,7 +108,7 @@ internal class MPVView(context: Context, attrs: AttributeSet) : SurfaceView(cont
         MPVLib.setOptionString("gpu-context", "android")
         MPVLib.setOptionString("opengl-es", "yes")
         MPVLib.setOptionString("hwdec", hwdec)
-        MPVLib.setOptionString("hwdec-codecs", "h264,hevc,mpeg4,mpeg2video,vp8,vp9")
+        MPVLib.setOptionString("hwdec-codecs", "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1")
         MPVLib.setOptionString("ao", "audiotrack,opensles")
         MPVLib.setOptionString("tls-verify", "yes")
         MPVLib.setOptionString("tls-ca-file", "${this.context.filesDir.path}/cacert.pem")

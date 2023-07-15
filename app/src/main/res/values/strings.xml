@@ -103,11 +103,9 @@
     <string name="pref_auto_rotation_default" translatable="false">auto</string>
 
     <string name="pref_display_media_title_title">Display media title (videos)</string>
-    <string name="pref_display_media_title_summary">Display the media title or filename of videos is displayed above the controls. Audio files will always display their metadata.</string>
+    <string name="pref_display_media_title_summary">Display the title or filename of videos above the controls. Audio files will always display their metadata.</string>
 
     <string name="pref_bottom_controls_title">Show controls at bottom of screen</string>
-
-    <string name="pref_display_in_cutout_title">Extend video into the notch/cutout area</string>
 
     <string name="pref_no_ui_pause_title">Continue playback during UI popups</string>
     <string name="pref_no_ui_pause_summary">Select if playback should continue while popups are open (e.g. playlist dialog)</string>
