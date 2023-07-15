@@ -212,7 +212,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.outside) { _, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.tappableElement())
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())
             val lp = binding.outside.layoutParams as RelativeLayout.LayoutParams
             lp.leftMargin = insets.left
             lp.bottomMargin = insets.bottom
@@ -316,6 +316,8 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
     private fun finishWithResult(code: Int, includeTimePos: Boolean = false) {
         // Refer to http://mpv-android.github.io/mpv-android/intent.html
         // FIXME: should track end-file events to accurately report OK vs CANCELED
+        if (isFinishing) // only count first call
+            return
         val result = Intent(RESULT_INTENT)
         result.data = if (intent.data?.scheme == "file") null else intent.data
         if (includeTimePos) {
@@ -406,6 +408,8 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         eventUiHandler.removeCallbacksAndMessages(null)
         if (isFinishing) {
             savePosition()
+            // tell mpv to shut down so that any other property changes or such are ignored,
+            // preventing useless busywork
             MPVLib.command(arrayOf("stop"))
         } else if (!shouldBackground) {
             player.paused = true
@@ -875,7 +879,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         val filepath = when (data.scheme) {
             "file" -> data.path
             "content" -> openContentFd(data)
-            "http", "https", "rtmp", "rtmps", "rtp", "rtsp", "mms", "mmst", "mmsh", "tcp", "udp"
+            "http", "https", "rtmp", "rtmps", "rtp", "rtsp", "mms", "mmst", "mmsh", "tcp", "udp", "lavf"
             -> data.toString()
             else -> null
         }
@@ -1640,10 +1644,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
     }
 
     override fun event(eventId: Int) {
-        // finish on idle/shutdown
-        if (playbackHasStarted && eventId == MPVLib.mpvEventId.MPV_EVENT_IDLE)
-            finishWithResult(RESULT_OK)
-        else if (eventId == MPVLib.mpvEventId.MPV_EVENT_SHUTDOWN)
+        if (eventId == MPVLib.mpvEventId.MPV_EVENT_SHUTDOWN)
             finishWithResult(if (playbackHasStarted) RESULT_OK else RESULT_CANCELED)
 
         if (eventId == MPVLib.mpvEventId.MPV_EVENT_START_FILE) {
