@@ -1,7 +1,6 @@
 package `is`.xyz.mpv
 
 import `is`.xyz.mpv.databinding.PlayerBinding
-
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.annotation.SuppressLint
@@ -26,14 +25,19 @@ import android.util.DisplayMetrics
 import android.util.Rational
 import androidx.core.content.ContextCompat
 import android.view.*
+import android.view.ViewGroup.MarginLayoutParams
 import android.widget.Button
-import android.widget.RelativeLayout
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.annotation.IdRes
 import androidx.annotation.LayoutRes
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updateLayoutParams
 import java.io.File
 import java.lang.IllegalArgumentException
 import kotlin.math.roundToInt
@@ -206,6 +210,20 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
             nextBtn.setOnLongClickListener { openPlaylistMenu(pauseForDialog()); true }
             cycleDecoderBtn.setOnLongClickListener { pickDecoder(); true }
         }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.outside) { _, windowInsets ->
+            // guidance: https://medium.com/androiddevelopers/gesture-navigation-handling-visual-overlaps-4aed565c134c
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val insets2 = windowInsets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            binding.outside.updateLayoutParams<MarginLayoutParams> {
+                // avoid system bars and cutout
+                leftMargin = Math.max(insets.left, insets2.left)
+                topMargin = Math.max(insets.top, insets2.top)
+                bottomMargin = Math.max(insets.bottom, insets2.bottom)
+                rightMargin = Math.max(insets.right, insets2.right)
+            }
+            WindowInsetsCompat.CONSUMED
+        }
     }
 
     @SuppressLint("ShowToast")
@@ -243,6 +261,13 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         // set up initial UI state
         syncSettings()
         onConfigurationChanged(resources.configuration)
+        run {
+            // edge-to-edge & immersive mode
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE))
             binding.topPiPBtn.visibility = View.GONE
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN))
@@ -296,6 +321,8 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
     private fun finishWithResult(code: Int, includeTimePos: Boolean = false) {
         // Refer to http://mpv-android.github.io/mpv-android/intent.html
         // FIXME: should track end-file events to accurately report OK vs CANCELED
+        if (isFinishing) // only count first call
+            return
         val result = Intent(RESULT_INTENT)
         result.data = if (intent.data?.scheme == "file") null else intent.data
         if (includeTimePos) {
@@ -308,6 +335,9 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
 
     override fun onDestroy() {
         Log.v(TAG, "Exiting.")
+
+        // Suppress any further callbacks
+        activityIsForeground = false
 
         mediaSession?.isActive = false
         mediaSession?.release()
@@ -386,6 +416,8 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         eventUiHandler.removeCallbacksAndMessages(null)
         if (isFinishing) {
             savePosition()
+            // tell mpv to shut down so that any other property changes or such are ignored,
+            // preventing useless busywork
             MPVLib.command(arrayOf("stop"))
         } else if (!shouldBackground) {
             player.paused = true
@@ -427,18 +459,6 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         this.showMediaTitle = prefs.getBoolean("display_media_title", false)
         this.ignoreAudioFocus = prefs.getBoolean("ignore_audio_focus", false)
         this.smoothSeekGesture = prefs.getBoolean("seek_gesture_smooth", false)
-
-        // Apply some changes depending on preferences
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val displayInCutout = prefs.getBoolean("display_in_cutout", true)
-            val lp = window.attributes
-            lp.layoutInDisplayCutoutMode = if (displayInCutout)
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            else
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
-            window.attributes = lp
-        }
     }
 
     override fun onStart() {
@@ -558,8 +578,8 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
                 binding.statsTextView.visibility = View.VISIBLE
             }
 
-            // TODO: what does this do?
-            window.decorView.systemUiVisibility = if (useAudioUI) View.SYSTEM_UI_FLAG_LAYOUT_STABLE else 0
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.show(WindowInsetsCompat.Type.navigationBars())
         }
 
         // add a new callback to hide the controls once again
@@ -576,8 +596,8 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         binding.topControls.visibility = View.GONE
         binding.statsTextView.visibility = View.GONE
 
-        val flags = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_IMMERSIVE
-        window.decorView.systemUiVisibility = flags
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.hide(WindowInsetsCompat.Type.systemBars())
     }
 
     private fun hideControlsDelayed() {
@@ -704,12 +724,17 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
                 return true
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> {
-                if (ev.action == KeyEvent.ACTION_DOWN) {
-                    val childCount = group1.childCount
-                    if (btnSelected < childCount)
-                        group1.getChildAt(btnSelected)?.performClick()
+                val childCount = group1.childCount
+                val view = if (btnSelected < childCount)
+                    group1.getChildAt(btnSelected)
+                else
+                    group2.getChildAt(btnSelected - childCount)
+                if (ev.action == KeyEvent.ACTION_UP) {
+                    // 500ms appears to be the standard
+                    if (ev.eventTime - ev.downTime > 500L)
+                        view?.performLongClick()
                     else
-                        group2.getChildAt(btnSelected - childCount)?.performClick()
+                        view?.performClick()
                 }
                 return true
             }
@@ -798,34 +823,25 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val hasSoftwareKeys = Utils.hasSoftwareKeys(this)
 
         // TODO: figure out if this should be replaced by WindowManager.getCurrentWindowMetrics()
         val dm = DisplayMetrics()
         windowManager.defaultDisplay.getRealMetrics(dm)
         gestures.setMetrics(dm.widthPixels.toFloat(), dm.heightPixels.toFloat())
 
-        // Move top controls so they don't overlap with System UI
-        if (hasSoftwareKeys) {
-            val lp = binding.topControls.layoutParams as RelativeLayout.LayoutParams
-            lp.marginEnd = if (isLandscape) Utils.convertDp(this, 48f) else 0
-        }
-
         // Adjust control margins
-        run {
-            val lp = binding.controls.layoutParams as RelativeLayout.LayoutParams
-
-            lp.bottomMargin = if (!controlsAtBottom) {
-                Utils.convertDp(this, 60f)
+        binding.controls.updateLayoutParams<MarginLayoutParams> {
+            bottomMargin = if (!controlsAtBottom) {
+                Utils.convertDp(this@MPVActivity, 60f)
             } else {
-                if (isLandscape || !hasSoftwareKeys) 0 else Utils.convertDp(this, 48f)
+                0
             }
-            lp.leftMargin = if (!controlsAtBottom) {
-                Utils.convertDp(this, if (isLandscape) 60f else 24f)
+            leftMargin = if (!controlsAtBottom) {
+                Utils.convertDp(this@MPVActivity, if (isLandscape) 60f else 24f)
             } else {
-                if (isLandscape && hasSoftwareKeys) Utils.convertDp(this, 48f) else 0
+                0
             }
-            lp.rightMargin = lp.leftMargin
+            rightMargin = leftMargin
         }
     }
 
@@ -875,7 +891,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
         val filepath = when (data.scheme) {
             "file" -> data.path
             "content" -> openContentFd(data)
-            "http", "https", "rtmp", "rtmps", "rtp", "rtsp", "mms", "mmst", "mmsh", "tcp", "udp"
+            "http", "https", "rtmp", "rtmps", "rtp", "rtsp", "mms", "mmst", "mmsh", "tcp", "udp", "lavf"
             -> data.toString()
             else -> null
         }
@@ -903,7 +919,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
             return path
         }
         // Else, pass the fd to mpv
-        return "fdclose://${fd}"
+        return "fd://${fd}"
     }
 
     private fun parseIntentExtras(extras: Bundle?) {
@@ -981,7 +997,26 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
 
     private fun pickAudio() = selectTrack("audio", { player.aid }, { player.aid = it })
 
-    private fun pickSub() = selectTrack("sub", { player.sid }, { player.sid = it })
+    private fun pickSub() {
+        val restore = pauseForDialog()
+        val impl = SubTrackDialog(player)
+        lateinit var dialog: AlertDialog
+        impl.listener = { it, secondary ->
+            if (secondary)
+                player.secondarySid = it.mpvId
+            else
+                player.sid = it.mpvId
+            dialog.dismiss()
+            trackSwitchNotification { TrackData(it.mpvId, SubTrackDialog.TRACK_TYPE) }
+        }
+
+        dialog = with (AlertDialog.Builder(this)) {
+            setView(impl.buildView(layoutInflater))
+            setOnDismissListener { restore() }
+            create()
+        }
+        dialog.show()
+    }
 
     private fun openPlaylistMenu(restore: StateRestoreCallback) {
         val impl = PlaylistDialog(player)
@@ -1640,10 +1675,7 @@ class MPVActivity : AppCompatActivity(), MPVLib.EventObserver, TouchGesturesObse
     }
 
     override fun event(eventId: Int) {
-        // finish on idle/shutdown
-        if (playbackHasStarted && eventId == MPVLib.mpvEventId.MPV_EVENT_IDLE)
-            finishWithResult(RESULT_OK)
-        else if (eventId == MPVLib.mpvEventId.MPV_EVENT_SHUTDOWN)
+        if (eventId == MPVLib.mpvEventId.MPV_EVENT_SHUTDOWN)
             finishWithResult(if (playbackHasStarted) RESULT_OK else RESULT_CANCELED)
 
         if (eventId == MPVLib.mpvEventId.MPV_EVENT_START_FILE) {
