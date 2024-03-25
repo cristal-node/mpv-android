@@ -67,23 +67,6 @@ object Utils {
         return null
     }
 
-    fun hasSoftwareKeys(activity: Activity): Boolean {
-        // Detect whether device has software home button
-        // https://stackoverflow.com/questions/14853039/#answer-14871974
-        val disp = activity.windowManager.defaultDisplay
-
-        val realMetrics = DisplayMetrics()
-        disp.getRealMetrics(realMetrics)
-        val realW = realMetrics.widthPixels
-        val realH = realMetrics.heightPixels
-        val metrics = DisplayMetrics()
-        disp.getMetrics(metrics)
-        val w = metrics.widthPixels
-        val h = metrics.heightPixels
-
-        return (realW - w > 0) or (realH - h > 0)
-    }
-
     fun convertDp(context: Context, dp: Float): Int {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp,
                 context.resources.displayMetrics).toInt()
@@ -144,7 +127,9 @@ object Utils {
 
         for (path in candidates) {
             var root = File(path)
-            val vol = storageManager.getStorageVolume(root) ?: continue
+            val vol = try {
+                storageManager.getStorageVolume(root)
+            } catch (e: SecurityException) { null } ?: continue
             if (vol.state != Environment.MEDIA_MOUNTED && vol.state != Environment.MEDIA_MOUNTED_READ_ONLY)
                 continue
 
@@ -427,6 +412,6 @@ object Utils {
     // cf. AndroidManifest.xml and MPVActivity.resolveUri()
     val PROTOCOLS = setOf(
         "file", "content", "http", "https",
-        "rtmp", "rtmps", "rtp", "rtsp", "mms", "mmst", "mmsh", "tcp", "udp"
+        "rtmp", "rtmps", "rtp", "rtsp", "mms", "mmst", "mmsh", "tcp", "udp", "lavf"
     )
 }

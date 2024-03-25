@@ -61,14 +61,13 @@ if [ "$1" == "install" ]; then
 
 	msg "Fetching mpv"
 	mkdir -p deps/mpv
-	$WGET https://github.com/mpv-player/mpv/archive/master.tar.gz -O master.tgz
+	$WGET https://github.com/mpv-player/mpv/archive/refs/tags/v0.36.0.tar.gz -O master.tgz
 	tar -xzf master.tgz -C deps/mpv --strip-components=1
 	rm master.tgz
 
 	msg "Trying to fetch existing prefix"
 	mkdir -p prefix
-	fetch_prefix
-	build_prefix arm64
+	fetch_prefix || ( build_prefix armv7l && build_prefix arm64 )
 	exit 0
 elif [ "$1" == "build" ]; then
 	:
